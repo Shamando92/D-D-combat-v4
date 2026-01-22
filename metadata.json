@@ -1,0 +1,5 @@
+{
+  "name": "D&D 5e Combat Support Dashboard",
+  "description": "A comprehensive combat tracker for D&D 5e featuring dynamic columns, monster imports via Gemini AI, session management, and advanced HP controls.",
+  "requestFramePermissions": []
+}
