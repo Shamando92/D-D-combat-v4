@@ -15,11 +15,13 @@ import {
   ShieldAlert, 
   CheckSquare, 
   X,
-  ArrowRightLeft
+  ArrowRightLeft,
+  RotateCcw
 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [combatants, setCombatants] = useState<Combatant[]>([]);
+  const [history, setHistory] = useState<Combatant[][]>([]);
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
   const [showModal, setShowModal] = useState<string | null>(null);
   const [modalData, setModalData] = useState<any>(null);
@@ -37,6 +39,23 @@ const App: React.FC = () => {
   const saveSessions = (newSessions: Session[]) => {
     setSessions(newSessions);
     localStorage.setItem('dnd_combat_sessions', JSON.stringify(newSessions));
+  };
+
+  // Helper to update combatants while saving history
+  const updateCombatantsWithHistory = useCallback((next: Combatant[] | ((prev: Combatant[]) => Combatant[])) => {
+    setHistory(prevHistory => [...prevHistory.slice(-49), combatants]);
+    if (typeof next === 'function') {
+      setCombatants(prev => next(prev));
+    } else {
+      setCombatants(next);
+    }
+  }, [combatants]);
+
+  const revert = () => {
+    if (history.length === 0) return;
+    const lastState = history[history.length - 1];
+    setCombatants(lastState);
+    setHistory(prev => prev.slice(0, -1));
   };
 
   // Auto-sort by initiative
@@ -74,15 +93,15 @@ const App: React.FC = () => {
       },
       customColumns: {}
     };
-    setCombatants([...combatants, newCombatant]);
+    updateCombatantsWithHistory([...combatants, newCombatant]);
   };
 
   const updateCombatant = (id: string, updates: Partial<Combatant>) => {
-    setCombatants(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    updateCombatantsWithHistory(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
   };
 
   const removeCombatant = (id: string) => {
-    setCombatants(prev => prev.filter(c => c.id !== id));
+    updateCombatantsWithHistory(prev => prev.filter(c => c.id !== id));
   };
 
   const addColumn = (name: string) => {
@@ -100,7 +119,7 @@ const App: React.FC = () => {
       canHide: true
     };
     setColumns([...columns, newCol]);
-    setCombatants(prev => prev.map(c => ({
+    updateCombatantsWithHistory(prev => prev.map(c => ({
       ...c,
       customColumns: { ...c.customColumns, [newId]: "" }
     })));
@@ -108,7 +127,7 @@ const App: React.FC = () => {
 
   const removeColumn = (id: string) => {
     setColumns(prev => prev.filter(c => c.id !== id));
-    setCombatants(prev => prev.map(c => {
+    updateCombatantsWithHistory(prev => prev.map(c => {
       const newCustom = { ...c.customColumns };
       delete newCustom[id];
       return { ...c, customColumns: newCustom };
@@ -116,7 +135,6 @@ const App: React.FC = () => {
   };
 
   const toggleColumnVisibility = (id: string) => {
-    // Fixed undefined 'col' variable by using the correct map parameter 'c'
     setColumns(prev => prev.map(c => c.id === id && c.canHide ? { ...c, isHidden: !c.isHidden } : c));
   };
 
@@ -176,7 +194,7 @@ const App: React.FC = () => {
         });
         return combatant as Combatant;
       });
-      setCombatants(prev => [...prev, ...newCombatants]);
+      updateCombatantsWithHistory(prev => [...prev, ...newCombatants]);
     };
     reader.readAsText(file);
   };
@@ -213,7 +231,7 @@ const App: React.FC = () => {
           customColumns: {}
         });
       }
-      setCombatants(prev => [...prev, ...newCombatants]);
+      updateCombatantsWithHistory(prev => [...prev, ...newCombatants]);
       setShowModal(null);
     } catch (err) {
       alert("Error fetching monster stats. Check your API key or connection.");
@@ -233,6 +251,13 @@ const App: React.FC = () => {
           </h1>
           <div className="h-6 w-px bg-slate-700" />
           <div className="flex gap-2">
+            <button 
+              onClick={revert}
+              disabled={history.length === 0}
+              className="bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 border border-slate-700"
+            >
+              <RotateCcw size={16} /> Revert
+            </button>
             <button 
               onClick={() => setShowModal('multi-damage')}
               className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
@@ -346,7 +371,7 @@ const App: React.FC = () => {
                 <MultiDamageModal 
                   combatants={combatants} 
                   onApply={(ids, amount, isHeal) => {
-                    setCombatants(prev => prev.map(c => {
+                    updateCombatantsWithHistory(prev => prev.map(c => {
                       if (ids.includes(c.id)) {
                         const current = typeof c.hp === 'number' ? c.hp : 0;
                         return { ...c, hp: isHeal ? current + amount : current - amount };
@@ -378,7 +403,7 @@ const App: React.FC = () => {
                 <LoadSessionModal 
                   sessions={sessions} 
                   onLoad={(session) => {
-                    setCombatants(session.data);
+                    updateCombatantsWithHistory(session.data);
                     setColumns(session.columns);
                     setShowModal(null);
                   }}
