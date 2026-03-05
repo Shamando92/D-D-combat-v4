@@ -19,11 +19,15 @@ export enum Condition {
 }
 
 export interface MonsterData {
-  actions: string[];
-  reactions: string[];
-  legendaryActions: string[];
-  resistances: string[];
-  immunities: string[];
+  abilities: string;
+  actions: string;
+  resistances: string;
+  immunities: string;
+  spells: string;
+  legendaryActions: string;
+  reactions: string;
+  vulnerabilities: string;
+  bonusActions: string;
   damageInfo: string;
 }
 
@@ -33,12 +37,7 @@ export interface Combatant {
   hp: number | "";
   ac: number | "";
   initiative: number | "";
-  str: number | "";
-  dex: number | "";
-  con: number | "";
-  int: number | "";
-  wis: number | "";
-  cha: number | "";
+  movement: string;
   savingThrows: string;
   condition: Condition;
   concentration: boolean;
@@ -55,9 +54,3 @@ export interface ColumnConfig {
   canHide: boolean;
 }
 
-export interface Session {
-  name: string;
-  date: string;
-  data: Combatant[];
-  columns: ColumnConfig[];
-}

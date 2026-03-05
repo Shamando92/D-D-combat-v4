@@ -1,14 +1,12 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Combatant, ColumnConfig, Condition, Session, MonsterData } from './types';
+import { Combatant, ColumnConfig, Condition, MonsterData } from './types';
 import { DEFAULT_COLUMNS, CONDITIONS } from './constants';
-import { fetchMonsterStats } from './services/geminiService';
+import { parseMonsterXlsx, MonsterImportData } from './services/monsterService';
 import CombatTable from './components/CombatTable';
 import { 
   Plus, 
   Settings, 
-  Save, 
-  FolderOpen, 
   Download, 
   Upload, 
   Search, 
@@ -16,30 +14,19 @@ import {
   CheckSquare, 
   X,
   ArrowRightLeft,
-  RotateCcw
+  RotateCcw,
+  Trash2,
+  Eraser
 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [combatants, setCombatants] = useState<Combatant[]>([]);
   const [history, setHistory] = useState<Combatant[][]>([]);
   const [columns, setColumns] = useState<ColumnConfig[]>(DEFAULT_COLUMNS);
+  const [allMonsters, setAllMonsters] = useState<MonsterImportData[]>([]);
   const [showModal, setShowModal] = useState<string | null>(null);
   const [modalData, setModalData] = useState<any>(null);
-  const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Load sessions from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('dnd_combat_sessions');
-    if (saved) {
-      setSessions(JSON.parse(saved));
-    }
-  }, []);
-
-  const saveSessions = (newSessions: Session[]) => {
-    setSessions(newSessions);
-    localStorage.setItem('dnd_combat_sessions', JSON.stringify(newSessions));
-  };
 
   // Helper to update combatants while saving history
   const updateCombatantsWithHistory = useCallback((next: Combatant[] | ((prev: Combatant[]) => Combatant[])) => {
@@ -74,21 +61,20 @@ const App: React.FC = () => {
       hp: "",
       ac: "",
       initiative: "",
-      str: "",
-      dex: "",
-      con: "",
-      int: "",
-      wis: "",
-      cha: "",
+      movement: "",
       savingThrows: "",
       condition: Condition.None,
       concentration: false,
       data: {
-        actions: [],
-        reactions: [],
-        legendaryActions: [],
-        resistances: [],
-        immunities: [],
+        abilities: "",
+        actions: "",
+        resistances: "",
+        immunities: "",
+        spells: "",
+        legendaryActions: "",
+        reactions: "",
+        vulnerabilities: "",
+        bonusActions: "",
         damageInfo: ""
       },
       customColumns: {}
@@ -172,7 +158,18 @@ const App: React.FC = () => {
         const values = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.replace(/"/g, ''));
         const combatant: any = {
           id: Math.random().toString(36).substr(2, 9),
-          data: { actions: [], reactions: [], legendaryActions: [], resistances: [], immunities: [], damageInfo: "" },
+          data: {
+            abilities: "",
+            actions: "",
+            resistances: "",
+            immunities: "",
+            spells: "",
+            legendaryActions: "",
+            reactions: "",
+            vulnerabilities: "",
+            bonusActions: "",
+            damageInfo: ""
+          },
           customColumns: {},
           condition: Condition.None,
           concentration: false
@@ -199,42 +196,42 @@ const App: React.FC = () => {
     reader.readAsText(file);
   };
 
-  const handleImportMonster = async (name: string, quantity: number) => {
+  const handleImportMonster = async (monsters: MonsterImportData[], quantity: number) => {
     setIsLoading(true);
     try {
-      const data = await fetchMonsterStats(name);
       const newCombatants: Combatant[] = [];
-      for (let i = 0; i < quantity; i++) {
-        newCombatants.push({
-          id: Math.random().toString(36).substr(2, 9),
-          name: quantity > 1 ? `${data.name} ${i + 1}` : data.name,
-          hp: data.hp,
-          ac: data.ac,
-          initiative: "", // Rolls separately
-          str: data.str,
-          dex: data.dex,
-          con: data.con,
-          int: data.int,
-          wis: data.wis,
-          cha: data.cha,
-          savingThrows: data.savingThrows || "",
-          condition: Condition.None,
-          concentration: false,
-          data: {
-            actions: data.actions || [],
-            reactions: data.reactions || [],
-            legendaryActions: data.legendaryActions || [],
-            resistances: data.resistances || [],
-            immunities: data.immunities || [],
-            damageInfo: data.damageInfo || ""
-          },
-          customColumns: {}
-        });
-      }
+      monsters.forEach(data => {
+        for (let i = 0; i < quantity; i++) {
+          newCombatants.push({
+            id: Math.random().toString(36).substr(2, 9),
+            name: quantity > 1 ? `${data.name} ${i + 1}` : data.name,
+            hp: data.hp,
+            ac: data.ac,
+            initiative: "",
+            movement: data.movement,
+            savingThrows: data.savingThrows || "",
+            condition: Condition.None,
+            concentration: false,
+            data: {
+              abilities: data.abilities || "",
+              actions: data.actions || "",
+              resistances: data.resistances || "",
+              immunities: data.immunities || "",
+              spells: data.spells || "",
+              legendaryActions: data.legendaryActions || "",
+              reactions: data.reactions || "",
+              vulnerabilities: data.vulnerabilities || "",
+              bonusActions: data.bonusActions || "",
+              damageInfo: ""
+            },
+            customColumns: {}
+          });
+        }
+      });
       updateCombatantsWithHistory(prev => [...prev, ...newCombatants]);
       setShowModal(null);
     } catch (err) {
-      alert("Error fetching monster stats. Check your API key or connection.");
+      alert("Error importing monster stats.");
     } finally {
       setIsLoading(false);
     }
@@ -274,18 +271,7 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <button 
-            onClick={() => setShowModal('save-session')}
-            className="text-slate-300 hover:text-white flex items-center gap-1 text-sm p-2"
-          >
-            <Save size={18} /> Save
-          </button>
-          <button 
-            onClick={() => setShowModal('load-session')}
-            className="text-slate-300 hover:text-white flex items-center gap-1 text-sm p-2"
-          >
-            <FolderOpen size={18} /> Load
-          </button>
+          <div className="h-6 w-px bg-slate-700 mx-1" />
           <button 
             onClick={exportCSV}
             className="text-slate-300 hover:text-white flex items-center gap-1 text-sm p-2"
@@ -383,47 +369,58 @@ const App: React.FC = () => {
                 />
               )}
               {showModal === 'import-monster' && (
-                <ImportMonsterModal onImport={handleImportMonster} isLoading={isLoading} />
-              )}
-              {showModal === 'save-session' && (
-                <SaveSessionModal 
-                  onSave={(name) => {
-                    const newSession: Session = {
-                      name,
-                      date: new Date().toISOString(),
-                      data: combatants,
-                      columns: columns
-                    };
-                    saveSessions([...sessions, newSession]);
-                    setShowModal(null);
-                  }} 
-                />
-              )}
-              {showModal === 'load-session' && (
-                <LoadSessionModal 
-                  sessions={sessions} 
-                  onLoad={(session) => {
-                    updateCombatantsWithHistory(session.data);
-                    setColumns(session.columns);
-                    setShowModal(null);
-                  }}
-                />
+                <ImportMonsterModal onImport={handleImportMonster} isLoading={isLoading} allMonsters={allMonsters} />
               )}
               {showModal === 'settings' && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-semibold text-slate-400 uppercase">Toggle Visible Columns</h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {columns.filter(c => c.canHide).map(col => (
-                      <label key={col.id} className="flex items-center gap-3 p-2 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors">
+                <div className="space-y-6">
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-slate-400 uppercase">Toggle Visible Columns</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {columns.filter(c => c.canHide).map(col => (
+                        <label key={col.id} className="flex items-center gap-3 p-2 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 transition-colors">
+                          <input 
+                            type="checkbox" 
+                            checked={!col.isHidden} 
+                            onChange={() => toggleColumnVisibility(col.id)}
+                            className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-indigo-600 focus:ring-indigo-500"
+                          />
+                          <span className="text-slate-200">{col.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-slate-700" />
+
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-slate-400 uppercase">Monster Database (XLSX)</h3>
+                    <div className="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center">
+                      <label className="cursor-pointer">
+                        <div className="flex flex-col items-center gap-2">
+                          <Upload className="w-8 h-8 text-slate-500" />
+                          <div className="text-slate-300 font-medium">
+                            {allMonsters.length ? `${allMonsters.length} Monsters Loaded` : 'Upload Monsters XLSX'}
+                          </div>
+                          <div className="text-slate-500 text-xs">Select the local database file</div>
+                        </div>
                         <input 
-                          type="checkbox" 
-                          checked={!col.isHidden} 
-                          onChange={() => toggleColumnVisibility(col.id)}
-                          className="w-4 h-4 rounded border-slate-600 bg-slate-900 text-indigo-600 focus:ring-indigo-500"
+                          type="file" 
+                          accept=".xlsx,.xls" 
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              try {
+                                const monsters = await parseMonsterXlsx(file);
+                                setAllMonsters(monsters);
+                              } catch (err) {
+                                alert("Error parsing XLSX file.");
+                              }
+                            }
+                          }} 
+                          className="hidden" 
                         />
-                        <span className="text-slate-200">{col.label}</span>
                       </label>
-                    ))}
+                    </div>
                   </div>
                 </div>
               )}
@@ -461,36 +458,41 @@ const AddColumnModal: React.FC<{ onAdd: (name: string) => void }> = ({ onAdd }) 
 };
 
 const DataModal: React.FC<{ data: MonsterData }> = ({ data }) => {
-  const Section = ({ title, items }: { title: string, items: string[] }) => (
-    items.length > 0 ? (
+  const Section = ({ title, content }: { title: string, content: string }) => (
+    content ? (
       <div className="mb-6">
         <h3 className="text-indigo-400 font-bold uppercase text-xs mb-3 tracking-wider">{title}</h3>
-        <ul className="space-y-2">
-          {items.map((it, idx) => (
-            <li key={idx} className="bg-slate-800/50 p-3 rounded-lg text-slate-300 text-sm border border-slate-700/50">
-              {it}
-            </li>
-          ))}
-        </ul>
+        <div className="bg-slate-800/50 p-3 rounded-lg text-slate-300 text-sm border border-slate-700/50 whitespace-pre-wrap">
+          {content}
+        </div>
       </div>
     ) : null
   );
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
           <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Resistances</h4>
-          <p className="text-slate-200 text-sm">{data.resistances.join(", ") || "None"}</p>
+          <p className="text-slate-200 text-sm">{data.resistances || "None"}</p>
         </div>
         <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
           <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Immunities</h4>
-          <p className="text-slate-200 text-sm">{data.immunities.join(", ") || "None"}</p>
+          <p className="text-slate-200 text-sm">{data.immunities || "None"}</p>
         </div>
       </div>
-      <Section title="Actions" items={data.actions} />
-      <Section title="Reactions" items={data.reactions} />
-      <Section title="Legendary Actions" items={data.legendaryActions} />
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
+          <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Vulnerabilities</h4>
+          <p className="text-slate-200 text-sm">{data.vulnerabilities || "None"}</p>
+        </div>
+      </div>
+      <Section title="Abilities" content={data.abilities} />
+      <Section title="Spells" content={data.spells} />
+      <Section title="Actions" content={data.actions} />
+      <Section title="Bonus Actions" content={data.bonusActions} />
+      <Section title="Reactions" content={data.reactions} />
+      <Section title="Legendary Actions" content={data.legendaryActions} />
       {data.damageInfo && (
         <div>
           <h3 className="text-indigo-400 font-bold uppercase text-xs mb-3 tracking-wider">Additional Info</h3>
@@ -621,107 +623,86 @@ const MultiDamageModal: React.FC<{
 };
 
 const ImportMonsterModal: React.FC<{ 
-  onImport: (name: string, qty: number) => void,
-  isLoading: boolean
-}> = ({ onImport, isLoading }) => {
-  const [name, setName] = useState("");
-  const [qty, setQty] = useState(1);
+  onImport: (monsters: MonsterImportData[], qty: number) => void,
+  isLoading: boolean,
+  allMonsters: MonsterImportData[]
+}> = ({ onImport, isLoading, allMonsters }) => {
+  const [search, setSearch] = useState("");
+  const [qty, setQty] = useState<number | "">("");
+  const [selectedMonster, setSelectedMonster] = useState<MonsterImportData | null>(null);
+
+  const filtered = allMonsters.filter(m => 
+    m.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   const handleSubmit = (e?: any) => {
     e?.preventDefault();
-    if (name && qty > 0) onImport(name, qty);
+    if (selectedMonster && typeof qty === 'number' && qty > 0) {
+      onImport([selectedMonster], qty);
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div>
-        <label className="block text-slate-400 text-xs font-bold uppercase mb-2">Monster Name</label>
-        <div className="relative">
-          <input 
-            autoFocus
-            type="text"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="e.g. Ancient Red Dragon"
-            className="w-full bg-slate-800 border border-slate-700 text-white p-4 rounded-xl pl-12 focus:ring-4 ring-indigo-500/20"
-          />
-          <Search className="absolute left-4 top-4 text-slate-500" />
+    <div className="space-y-6">
+      {!allMonsters.length ? (
+        <div className="p-8 text-center text-slate-500">
+          No monster database loaded. Please go to Settings to upload an XLSX file.
         </div>
-      </div>
-
-      <div>
-        <label className="block text-slate-400 text-xs font-bold uppercase mb-2">Quantity</label>
-        <select 
-          value={qty}
-          onChange={e => setQty(parseInt(e.target.value))}
-          className="w-full bg-slate-800 border border-slate-700 text-white p-4 rounded-xl"
-        >
-          {[1, 2, 3, 4, 5, 10, 15, 20].map(n => (
-            <option key={n} value={n}>{n} unit{n > 1 ? 's' : ''}</option>
-          ))}
-        </select>
-      </div>
-
-      <button 
-        type="submit"
-        disabled={isLoading || !name}
-        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-700 text-white font-bold p-4 rounded-xl flex items-center justify-center gap-3 transition-all"
-      >
-        {isLoading ? (
-          <>
-            <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-            Summoning...
-          </>
-        ) : (
-          "Import via AI"
-        )}
-      </button>
-    </form>
-  );
-};
-
-const SaveSessionModal: React.FC<{ onSave: (name: string) => void }> = ({ onSave }) => {
-  const [name, setName] = useState("");
-  return (
-    <div className="space-y-4">
-      <input 
-        autoFocus
-        type="text"
-        value={name}
-        onChange={e => setName(e.target.value)}
-        onKeyDown={e => e.key === 'Enter' && name && onSave(name)}
-        placeholder="Session Name (e.g. Cragmaw Hideout)"
-        className="w-full bg-slate-800 border border-slate-700 text-white p-4 rounded-xl"
-      />
-      <button 
-        onClick={() => name && onSave(name)}
-        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-4 rounded-xl"
-      >
-        Save Session
-      </button>
-    </div>
-  );
-};
-
-const LoadSessionModal: React.FC<{ sessions: Session[], onLoad: (s: Session) => void }> = ({ sessions, onLoad }) => {
-  return (
-    <div className="space-y-3">
-      {sessions.length === 0 ? (
-        <p className="text-slate-500 text-center py-8">No saved sessions found.</p>
       ) : (
-        sessions.map((s, idx) => (
-          <button 
-            key={idx}
-            onClick={() => onLoad(s)}
-            className="w-full bg-slate-800 hover:bg-slate-700 p-4 rounded-xl border border-slate-700 text-left flex justify-between items-center group"
-          >
-            <div>
-              <div className="text-white font-bold">{s.name}</div>
-              <div className="text-slate-500 text-xs">{new Date(s.date).toLocaleString()}</div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-slate-400 text-xs font-bold uppercase mb-2">Search Monster</label>
+            <div className="relative">
+              <input 
+                autoFocus
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search in database..."
+                className="w-full bg-slate-800 border border-slate-700 text-white p-4 rounded-xl pl-12 focus:ring-4 ring-indigo-500/20"
+              />
+              <Search className="absolute left-4 top-4 text-slate-500" />
             </div>
-            <ArrowRightLeft className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
+          </div>
+
+          <div className="max-h-48 overflow-y-auto border border-slate-700 rounded-xl bg-slate-800/50">
+            {filtered.map((m, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setSelectedMonster(m)}
+                className={`w-full text-left p-3 border-b border-slate-700 last:border-0 hover:bg-slate-700 transition-colors flex justify-between items-center ${selectedMonster?.name === m.name ? 'bg-indigo-900/30' : ''}`}
+              >
+                <span className="text-slate-200 font-medium">{m.name}</span>
+                <span className="text-slate-500 text-xs">AC {m.ac} | HP {m.hp}</span>
+              </button>
+            ))}
+            {filtered.length === 0 && <div className="p-4 text-slate-500 text-center">No monsters found</div>}
+          </div>
+
+          <div>
+            <label className="block text-slate-400 text-xs font-bold uppercase mb-2">Quantity</label>
+            <input 
+              type="number"
+              min="1"
+              value={qty}
+              onChange={e => {
+                const val = e.target.value;
+                setQty(val === "" ? "" : parseInt(val));
+              }}
+              placeholder="Enter quantity..."
+              className="w-full bg-slate-800 border border-slate-700 text-white p-4 rounded-xl"
+            />
+          </div>
+
+          <button 
+            type="submit"
+            disabled={isLoading || !selectedMonster || qty === "" || qty <= 0}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-700 text-white font-bold p-4 rounded-xl flex items-center justify-center gap-3 transition-all"
+          >
+            {isLoading ? "Summoning..." : "Import Monster"}
           </button>
-        ))
+        </form>
       )}
     </div>
   );
