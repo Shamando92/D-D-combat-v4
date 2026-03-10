@@ -5,6 +5,7 @@ export interface MonsterImportData {
   name: string;
   ac: number;
   hp: number;
+  initiative: number | "";
   movement: string;
   savingThrows: string;
   abilities: string;
@@ -31,6 +32,7 @@ export async function parseMonsterXlsx(file: File): Promise<MonsterImportData[]>
 
         // Mapping:
         // Column A (0) -> Name
+        // Column C (2) -> Initiative
         // Column D (3) -> AC
         // Column E (4) -> HP
         // Column F (5) -> Movement
@@ -47,6 +49,7 @@ export async function parseMonsterXlsx(file: File): Promise<MonsterImportData[]>
 
         const monsters: MonsterImportData[] = json.slice(1).map((row: any) => ({
           name: String(row.A || ''),
+          initiative: (row.C !== undefined && row.C !== "" ? Number(row.C) : "") as number | "",
           ac: Number(row.D || 0),
           hp: Number(row.E || 0),
           movement: String(row.F || ''),

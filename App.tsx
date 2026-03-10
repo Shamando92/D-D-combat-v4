@@ -207,7 +207,7 @@ const App: React.FC = () => {
             name: quantity > 1 ? `${data.name} ${i + 1}` : data.name,
             hp: data.hp,
             ac: data.ac,
-            initiative: "",
+            initiative: data.initiative,
             movement: data.movement,
             savingThrows: data.savingThrows || "",
             condition: Condition.None,
@@ -674,7 +674,7 @@ const ImportMonsterModal: React.FC<{
                 className={`w-full text-left p-3 border-b border-slate-700 last:border-0 hover:bg-slate-700 transition-colors flex justify-between items-center ${selectedMonster?.name === m.name ? 'bg-indigo-900/30' : ''}`}
               >
                 <span className="text-slate-200 font-medium">{m.name}</span>
-                <span className="text-slate-500 text-xs">AC {m.ac} | HP {m.hp}</span>
+                <span className="text-slate-500 text-xs">AC {m.ac} | HP {m.hp} | Init {m.initiative !== "" ? m.initiative : '-'}</span>
               </button>
             ))}
             {filtered.length === 0 && <div className="p-4 text-slate-500 text-center">No monsters found</div>}
